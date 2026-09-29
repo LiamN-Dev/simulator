@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Startup Office AI Live</title>
+  <style>
+    body { font-family: monospace; background: #1a1a1a; color: #00ff66; padding: 20px; }
+    h1 { color: #fff; }
+    #logs { background: #000; border: 1px solid #333; padding: 10px; height: 350px; overflow-y: auto; }
+    .log-item { margin-bottom: 8px; border-bottom: 1px solid #222; padding-bottom: 4px; }
+    .god-panel { margin-top: 20px; padding: 15px; border: 1px dashed #ff0055; width: fit-content; background: #111; }
+    input, button { padding: 8px; font-family: monospace; background: #222; color: #fff; border: 1px solid #555; }
+    button { cursor: pointer; background: #ff0055; border: none; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>🏢 Startup Office 24/7 Sim</h1>
+  <div id="status">Budget: $10,000</div>
+  <h3>Live Activity Feed:</h3>
+  <div id="logs"></div>
+
+  <div class="god-panel">
+    <h3>⚡ Admin God Mode</h3>
+    <input type="text" id="godInput" placeholder="e.g. 'Coffee machine broke' or 'Fire Sam'">
+    <button onclick="sendGodEvent()">Trigger Event</button>
+  </div>
+
+  <script>
+    async function updateFeed() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        document.getElementById('status').innerText = `Budget: $${data.budget}`;
+        document.getElementById('logs').innerHTML = data.logs
+          .map(log => `<div class="log-item">${log}</div>`)
+          .join('');
+      } catch (err) {}
+    }
+
+    async function sendGodEvent() {
+      const text = document.getElementById('godInput').value;
+      if (!text) return;
+      await fetch('/api/admin/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventMessage: text })
+      });
+      document.getElementById('godInput').value = '';
+      updateFeed();
+    }
+
+    setInterval(updateFeed, 3000);
+    updateFeed();
+  </script>
+</body>
+</html>
