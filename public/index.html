@@ -6,36 +6,315 @@
   <title>Class Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen">
-  <div id="app" class="p-6 max-w-5xl mx-auto">
-    <!-- Banner Container -->
-    <div id="banner" class="hidden mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
-      <span class="font-bold">📌 Next Up:</span> <span id="banner-text">Loading...</span>
-    </div>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
 
-    <h1 class="text-3xl font-bold tracking-tight">Class Study Hub</h1>
-    <p class="text-slate-400 mt-1">Select your course to view units and study resources.</p>
+  <!-- AUTH SECTION (Login / Register) -->
+  <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+      <div class="text-center mb-6">
+        <h1 class="text-3xl font-extrabold text-amber-400 tracking-tight">Class Hub</h1>
+        <p class="text-slate-400 text-sm mt-1">Study materials, notes & group resources</p>
+      </div>
+
+      <!-- Tab Buttons -->
+      <div class="flex bg-slate-950 p-1 rounded-xl mb-6 border border-slate-800">
+        <button id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950">Login</button>
+        <button id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-sm font-semibold rounded-lg text-slate-400 hover:text-slate-200">Request Access</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Username</label>
+          <input id="login-username" type="text" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Password</label>
+          <input id="login-password" type="password" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none">
+        </div>
+        <button type="submit" class="w-full py-3 bg-amber-500 text-slate-950 font-bold rounded-xl hover:bg-amber-400 transition">Sign In</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Full Name / Display Name</label>
+          <input id="reg-name" type="text" placeholder="e.g. Liam Nystrom" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Desired Username</label>
+          <input id="reg-username" type="text" placeholder="e.g. liam_n" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 uppercase font-bold mb-1">Password</label>
+          <input id="reg-password" type="password" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none">
+        </div>
+        <button type="submit" class="w-full py-3 bg-amber-500 text-slate-950 font-bold rounded-xl hover:bg-amber-400 transition">Submit Request</button>
+      </form>
+
+      <p id="auth-error" class="text-red-400 text-xs text-center mt-4 hidden"></p>
+      <p id="auth-success" class="text-emerald-400 text-xs text-center mt-4 hidden"></p>
+    </div>
   </div>
 
-  <!-- Mandatory Popup Modal -->
+  <!-- MAIN APP DASHBOARD -->
+  <div id="app-screen" class="hidden min-h-screen pb-12">
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-30 px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-xl font-black text-amber-400">ClassHub</span>
+        <span id="user-badge" class="text-xs bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-full text-slate-300"></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btn-admin-toggle" onclick="toggleAdminPanel()" class="hidden text-xs bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg hover:bg-amber-500/20 font-semibold">Admin Panel</button>
+        <button onclick="logout()" class="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-700">Logout</button>
+      </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 pt-6">
+      <!-- Personalized Banner -->
+      <div id="banner-container" class="mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200 flex items-center justify-between">
+        <div>
+          <span class="font-bold uppercase tracking-wider text-xs block text-amber-400">📌 Next Up</span>
+          <span id="banner-text" class="text-sm font-medium">Loading upcoming due dates...</span>
+        </div>
+      </div>
+
+      <!-- Course Selector Tabs -->
+      <div id="course-tabs" class="flex gap-2 border-b border-slate-800 pb-4 overflow-x-auto mb-6"></div>
+
+      <!-- Units & Material Container -->
+      <div id="units-container" class="space-y-6"></div>
+
+      <!-- Admin Panel Section -->
+      <div id="admin-panel" class="hidden mt-12 pt-8 border-t border-slate-800">
+        <h2 class="text-2xl font-bold text-amber-400 mb-6">Admin Control Panel</h2>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <!-- Pending Users Queue -->
+          <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+            <h3 class="text-lg font-bold mb-4">Account Requests & Users</h3>
+            <div id="admin-users-list" class="space-y-3"></div>
+          </div>
+
+          <!-- Pending Unlock Requests Queue -->
+          <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+            <h3 class="text-lg font-bold mb-4">Vault Unlock Requests</h3>
+            <div id="admin-unlocks-list" class="space-y-3"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MANDATORY POPUP MODAL -->
   <div id="popup-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+    <div class="bg-slate-900 border border-amber-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl">
       <h3 id="popup-title" class="text-xl font-bold text-amber-400 mb-2">Notice</h3>
       <p id="popup-body" class="text-slate-300 text-sm mb-6 leading-relaxed"></p>
       
-      <div class="flex items-center gap-3 mb-6 bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+      <div class="flex items-center gap-3 mb-6 bg-slate-950 p-3 rounded-xl border border-slate-800">
         <input type="checkbox" id="ack-check" class="w-4 h-4 accent-amber-500 rounded cursor-pointer" onchange="toggleAckButton()">
         <label for="ack-check" class="text-xs text-slate-300 cursor-pointer select-none">I have read and acknowledged this notice</label>
       </div>
 
-      <button id="ack-btn" disabled onclick="confirmPopup()" class="w-full py-2.5 rounded-xl font-medium bg-amber-500 text-slate-950 opacity-50 cursor-not-allowed transition">
+      <button id="ack-btn" disabled onclick="confirmPopup()" class="w-full py-3 rounded-xl font-bold bg-amber-500 text-slate-950 opacity-50 cursor-not-allowed transition">
         Confirm & Continue
       </button>
     </div>
   </div>
 
+  <!-- UNLOCK REQUEST MODAL -->
+  <div id="unlock-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl">
+      <h3 class="text-xl font-bold text-slate-100 mb-2">Request Resource Access</h3>
+      <p class="text-xs text-slate-400 mb-4">State your reason to the admin for early or catch-up unlock access.</p>
+      
+      <textarea id="unlock-reason" rows="3" placeholder="e.g. Absent on Tuesday for morning band practice..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm focus:border-amber-500 focus:outline-none text-slate-200 mb-4"></textarea>
+
+      <div class="flex gap-3">
+        <button onclick="closeUnlockModal()" class="flex-1 py-2.5 rounded-xl border border-slate-800 text-slate-400 text-sm">Cancel</button>
+        <button onclick="submitUnlockRequest()" class="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm">Submit Request</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let currentUser = null;
+    let currentCourseId = null;
+    let selectedResourceForUnlock = null;
     let currentPopupId = null;
+
+    // --- AUTHENTICATION FLOW ---
+
+    function switchAuthTab(tab) {
+      document.getElementById('form-login').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('form-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('tab-login').className = tab === 'login' ? 'flex-1 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950' : 'flex-1 py-2 text-sm font-semibold rounded-lg text-slate-400';
+      document.getElementById('tab-register').className = tab === 'register' ? 'flex-1 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-slate-950' : 'flex-1 py-2 text-sm font-semibold rounded-lg text-slate-400';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('login-username').value;
+      const password = document.getElementById('login-password').value;
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        currentUser = data.user;
+        initApp();
+      } else {
+        showAuthError(data.error);
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const display_name = document.getElementById('reg-name').value;
+      const username = document.getElementById('reg-username').value;
+      const password = document.getElementById('reg-password').value;
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name, username, password })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        showAuthSuccess(data.message);
+        switchAuthTab('login');
+      } else {
+        showAuthError(data.error);
+      }
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('auth-error');
+      el.innerText = msg;
+      el.classList.remove('hidden');
+    }
+
+    function showAuthSuccess(msg) {
+      const el = document.getElementById('auth-success');
+      el.innerText = msg;
+      el.classList.remove('hidden');
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.reload();
+    }
+
+    // --- APP INITIALIZATION ---
+
+    async function initApp() {
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-screen').classList.remove('hidden');
+      document.getElementById('user-badge').innerText = `${currentUser.display_name} (${currentUser.role})`;
+
+      if (currentUser.role === 'admin') {
+        document.getElementById('btn-admin-toggle').classList.remove('hidden');
+      }
+
+      await loadBanner();
+      await loadCourses();
+      await checkPopups();
+    }
+
+    async function loadBanner() {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/banner', { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+
+      let text = data.message;
+      if (data.due_title) {
+        const dateStr = data.due_at ? new Date(data.due_at).toLocaleDateString() : '';
+        text += `: ${data.due_title} ${dateStr ? '(' + dateStr + ')' : ''}`;
+      }
+      document.getElementById('banner-text').innerText = text;
+    }
+
+    async function loadCourses() {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/courses', { headers: { 'Authorization': `Bearer ${token}` } });
+      const courses = await res.json();
+
+      const tabsContainer = document.getElementById('course-tabs');
+      tabsContainer.innerHTML = '';
+
+      if (courses.length === 0) {
+        tabsContainer.innerHTML = `<span class="text-xs text-slate-500">No courses assigned yet. Ask admin for access.</span>`;
+        return;
+      }
+
+      courses.forEach((course, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-2 rounded-xl text-sm font-semibold transition border border-slate-800 ${idx === 0 ? 'bg-amber-500 text-slate-950' : 'bg-slate-900 text-slate-300'}`;
+        btn.innerText = `${course.name} (${course.period})`;
+        btn.onclick = () => {
+          document.querySelectorAll('#course-tabs button').forEach(b => b.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition border border-slate-800 bg-slate-900 text-slate-300');
+          btn.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition border border-slate-800 bg-amber-500 text-slate-950';
+          loadUnits(course.id);
+        };
+        tabsContainer.appendChild(btn);
+      });
+
+      loadUnits(courses[0].id);
+    }
+
+    async function loadUnits(courseId) {
+      currentCourseId = courseId;
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/courses/${courseId}/units`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const units = await res.json();
+
+      const container = document.getElementById('units-container');
+      container.innerHTML = '';
+
+      units.forEach(unit => {
+        const unitDiv = document.createElement('div');
+        unitDiv.className = 'bg-slate-900/60 border border-slate-800 rounded-2xl p-5';
+
+        let html = `<h3 class="text-lg font-bold text-slate-200 mb-4">${unit.title}</h3>`;
+        html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">`;
+
+        unit.resources.forEach(r => {
+          if (r.is_unlocked) {
+            html += `
+              <a href="${r.url}" target="_blank" class="p-3.5 bg-slate-950 border border-slate-800 hover:border-amber-500/50 rounded-xl flex items-center justify-between transition">
+                <div>
+                  <span class="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-bold uppercase">${r.type}</span>
+                  <p class="font-semibold text-sm text-slate-200 mt-1">${r.title}</p>
+                </div>
+                <span class="text-xs text-slate-400">Open ↗</span>
+              </a>`;
+          } else {
+            html += `
+              <div onclick="openUnlockModal(${r.id})" class="p-3.5 bg-slate-950/50 border border-slate-800/80 rounded-xl flex items-center justify-between opacity-75 cursor-pointer hover:border-amber-500/30">
+                <div>
+                  <span class="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-bold uppercase">🔒 Vault Locked</span>
+                  <p class="font-semibold text-sm text-slate-400 mt-1">${r.title}</p>
+                </div>
+                <span class="text-xs text-amber-400 underline">Request</span>
+              </div>`;
+          }
+        });
+
+        html += `</div>`;
+        unitDiv.innerHTML = html;
+        container.appendChild(unitDiv);
+      });
+    }
+
+    // --- POPUP SYSTEM ---
 
     function toggleAckButton() {
       const checked = document.getElementById('ack-check').checked;
@@ -47,11 +326,7 @@
 
     async function checkPopups() {
       const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const res = await fetch('/api/popups/active', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch('/api/popups/active', { headers: { 'Authorization': `Bearer ${token}` } });
       const popups = await res.json();
 
       if (popups.length > 0) {
@@ -65,17 +340,140 @@
 
     async function confirmPopup() {
       const token = localStorage.getItem('token');
-      if (!currentPopupId || !token) return;
-
       await fetch(`/api/popups/${currentPopupId}/acknowledge`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
       document.getElementById('popup-modal').classList.add('hidden');
       document.getElementById('ack-check').checked = false;
       toggleAckButton();
-      checkPopups(); // Check if more pending popups exist
+      checkPopups();
+    }
+
+    // --- UNLOCK REQUEST MODAL ---
+
+    function openUnlockModal(id) {
+      selectedResourceForUnlock = id;
+      document.getElementById('unlock-modal').classList.remove('hidden');
+    }
+
+    function closeUnlockModal() {
+      document.getElementById('unlock-modal').classList.add('hidden');
+    }
+
+    async function submitUnlockRequest() {
+      const reason = document.getElementById('unlock-reason').value;
+      const token = localStorage.getItem('token');
+      await fetch('/api/unlock-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ resource_id: selectedResourceForUnlock, reason })
+      });
+      closeUnlockModal();
+      alert('Unlock request sent to admin!');
+    }
+
+    // --- ADMIN PANEL CONTROLS ---
+
+    function toggleAdminPanel() {
+      const panel = document.getElementById('admin-panel');
+      panel.classList.toggle('hidden');
+      if (!panel.classList.contains('hidden')) {
+        loadAdminUsers();
+        loadAdminUnlocks();
+      }
+    }
+
+    async function loadAdminUsers() {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+      const users = await res.json();
+
+      const list = document.getElementById('admin-users-list');
+      list.innerHTML = '';
+
+      users.forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-2';
+        div.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-200">${u.display_name} (@${u.username})</span>
+            <span class="px-2 py-0.5 rounded font-bold uppercase ${u.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${u.status}</span>
+          </div>
+          <div class="flex gap-2">
+            ${u.status === 'pending' ? `<button onclick="updateUserStatus(${u.id}, 'approved')" class="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded font-bold">Approve</button>` : ''}
+            ${u.status === 'approved' ? `<button onclick="updateUserStatus(${u.id}, 'suspended')" class="bg-red-500/20 text-red-400 px-2.5 py-1 rounded">Suspend</button>` : ''}
+            <button onclick="promptResetPassword(${u.id})" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded">Reset Pass</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function updateUserStatus(id, status) {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/admin/users/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status })
+      });
+      loadAdminUsers();
+    }
+
+    async function promptResetPassword(id) {
+      const pass = prompt("Enter new temporary password for student:");
+      if (!pass) return;
+      const token = localStorage.getItem('token');
+      await fetch(`/api/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ new_password: pass })
+      });
+      alert('Password updated!');
+    }
+
+    async function loadAdminUnlocks() {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/unlock-requests', { headers: { 'Authorization': `Bearer ${token}` } });
+      const requests = await res.json();
+
+      const list = document.getElementById('admin-unlocks-list');
+      list.innerHTML = '';
+
+      requests.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs space-y-2';
+        div.innerHTML = `
+          <div>
+            <span class="font-bold text-amber-400">${r.display_name}</span> requested access to <span class="text-slate-200 font-semibold">${r.resource_title}</span>
+            <p class="text-slate-400 mt-1 italic">"${r.reason}"</p>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="resolveUnlock(${r.id}, 'approved')" class="bg-emerald-500 text-slate-950 px-2.5 py-1 rounded font-bold">Approve Permanent</button>
+            <button onclick="resolveUnlock(${r.id}, 'approved', 24)" class="bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded">Approve 24h Pass</button>
+            <button onclick="resolveUnlock(${r.id}, 'denied')" class="bg-red-500/20 text-red-400 px-2.5 py-1 rounded">Deny</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function resolveUnlock(id, status, hours_valid = null) {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/admin/unlock-requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status, hours_valid })
+      });
+      loadAdminUnlocks();
+    }
+
+    // Auto-login if token exists
+    if (localStorage.getItem('token')) {
+      const token = localStorage.getItem('token');
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      currentUser = payload;
+      initApp();
     }
   </script>
 </body>
