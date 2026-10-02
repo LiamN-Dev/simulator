@@ -17,7 +17,17 @@ const app = express();
 app.set('trust proxy', 1); // Render sits behind a proxy
 app.use(express.json({ limit: '50kb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+const fs = require('fs');
+const pub = path.join(__dirname, 'public');
+app.use(express.static(pub));
+app.get('/', (req, res) => {
+  const f = path.join(pub, 'index.html');
+  if (fs.existsSync(f)) return res.sendFile(f);
+  res.status(500).send(
+    'index.html not found.\nApp folder: ' + fs.readdirSync(__dirname).join(', ') +
+    '\npublic folder: ' + (fs.existsSync(pub) ? fs.readdirSync(pub).join(', ') : 'MISSING')
+  );
+});
 
 const wrap = fn => (req, res) => fn(req, res).catch(e => { console.error(e); res.status(500).json({ error: 'Server error' }); });
 
