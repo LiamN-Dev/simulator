@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: class-hub
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: class-hub-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: class-hub-db
+    plan: free
