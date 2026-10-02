@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Class Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <div id="app" class="p-6 max-w-5xl mx-auto">
+    <!-- Banner Container -->
+    <div id="banner" class="hidden mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
+      <span class="font-bold">📌 Next Up:</span> <span id="banner-text">Loading...</span>
+    </div>
+
+    <h1 class="text-3xl font-bold tracking-tight">Class Study Hub</h1>
+    <p class="text-slate-400 mt-1">Select your course to view units and study resources.</p>
+  </div>
+
+  <!-- Mandatory Popup Modal -->
+  <div id="popup-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <h3 id="popup-title" class="text-xl font-bold text-amber-400 mb-2">Notice</h3>
+      <p id="popup-body" class="text-slate-300 text-sm mb-6 leading-relaxed"></p>
+      
+      <div class="flex items-center gap-3 mb-6 bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+        <input type="checkbox" id="ack-check" class="w-4 h-4 accent-amber-500 rounded cursor-pointer" onchange="toggleAckButton()">
+        <label for="ack-check" class="text-xs text-slate-300 cursor-pointer select-none">I have read and acknowledged this notice</label>
+      </div>
+
+      <button id="ack-btn" disabled onclick="confirmPopup()" class="w-full py-2.5 rounded-xl font-medium bg-amber-500 text-slate-950 opacity-50 cursor-not-allowed transition">
+        Confirm & Continue
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let currentPopupId = null;
+
+    function toggleAckButton() {
+      const checked = document.getElementById('ack-check').checked;
+      const btn = document.getElementById('ack-btn');
+      btn.disabled = !checked;
+      btn.classList.toggle('opacity-50', !checked);
+      btn.classList.toggle('cursor-not-allowed', !checked);
+    }
+
+    async function checkPopups() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch('/api/popups/active', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const popups = await res.json();
+
+      if (popups.length > 0) {
+        const popup = popups[0];
+        currentPopupId = popup.id;
+        document.getElementById('popup-title').innerText = popup.title;
+        document.getElementById('popup-body').innerText = popup.message;
+        document.getElementById('popup-modal').classList.remove('hidden');
+      }
+    }
+
+    async function confirmPopup() {
+      const token = localStorage.getItem('token');
+      if (!currentPopupId || !token) return;
+
+      await fetch(`/api/popups/${currentPopupId}/acknowledge`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      document.getElementById('popup-modal').classList.add('hidden');
+      document.getElementById('ack-check').checked = false;
+      toggleAckButton();
+      checkPopups(); // Check if more pending popups exist
+    }
+  </script>
+</body>
+</html>
