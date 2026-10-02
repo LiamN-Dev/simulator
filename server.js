@@ -15,55 +15,55 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Auto-run schema migrations on database connect
+// Auto-migrate schema on start
 async function initDB() {
   try {
     const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
     await pool.query(schema);
     
-    // Seed initial admin user if not exists
+    // Seed admin if missing
     const adminCheck = await pool.query("SELECT * FROM users WHERE username = 'admin'");
     if (adminCheck.rows.length === 0) {
       const hash = await bcrypt.hash('admin123', 10);
       await pool.query(
         "INSERT INTO users (display_name, username, password_hash, role, status) VALUES ($1, $2, $3, $4, $5)",
-        ['Admin', 'admin', hash, 'admin', 'approved']
+        ['System Admin', 'admin', hash, 'admin', 'approved']
       );
-      console.log('Admin seeded: username "admin", password "admin123"');
+      console.log('Seeded default admin: username "admin", password "admin123"');
     }
   } catch (err) {
-    console.error('Database migration failed:', err);
+    console.error('Database migration error:', err);
   }
 }
 initDB();
 
-// Middleware: Authenticate JWT Token
+// Middleware: Verify JWT
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Access denied' });
 
   jwt.verify(token, process.env.JWT_SECRET || 'secret', (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid or expired session' });
+    if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
     next();
   });
 }
 
-// Middleware: Admin Authorization Check
+// Middleware: Admin Only Check
 function requireAdmin(req, res, next) {
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
+    return res.status(403).json({ error: 'Admin privileges required' });
   }
   next();
 }
 
-// --- AUTHENTICATION ENDPOINTS ---
+// --- AUTH ROUTES ---
 
 app.post('/api/auth/register', async (req, res) => {
   const { display_name, username, password } = req.body;
   if (!display_name || !username || !password) {
-    return res.status(400).json({ error: 'All fields are required' });
+    return res.status(400).json({ error: 'All fields required' });
   }
   try {
     const hash = await bcrypt.hash(password, 10);
@@ -80,14 +80,14 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   const result = await pool.query("SELECT * FROM users WHERE username = $1", [username.toLowerCase().trim()]);
-  if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid username or password' });
+  if (result.rows.length === 0) return res.status(400).json({ error: 'Account not found' });
 
   const user = result.rows[0];
   if (user.status === 'pending') return res.status(403).json({ error: 'Account is pending admin approval' });
-  if (user.status === 'suspended') return res.status(403).json({ error: 'Account has been locked by admin' });
+  if (user.status === 'suspended') return res.status(403).json({ error: 'Account is locked/suspended' });
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) return res.status(400).json({ error: 'Invalid username or password' });
+  if (!valid) return res.status(400).json({ error: 'Incorrect password' });
 
   const token = jwt.sign(
     { id: user.id, username: user.username, role: user.role, display_name: user.display_name },
@@ -96,12 +96,11 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ token, user: { id: user.id, username: user.username, role: user.role, display_name: user.display_name } });
 });
 
-// --- STUDENT DASHBOARD & COURSES ---
+// --- COURSES & UNITS ROUTES ---
 
 app.get('/api/courses', authenticateToken, async (req, res) => {
   try {
-    let query;
-    let params = [];
+    let query, params = [];
     if (req.user.role === 'admin') {
       query = "SELECT * FROM courses ORDER BY id ASC";
     } else {
@@ -125,13 +124,11 @@ app.get('/api/courses/:id/units', authenticateToken, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
 
   try {
-    // Fetch units
     let unitQuery = "SELECT * FROM units WHERE course_id = $1";
     if (!isAdmin) unitQuery += " AND is_visible = TRUE";
     unitQuery += " ORDER BY order_index ASC, id ASC";
     const units = await pool.query(unitQuery, [courseId]);
 
-    // Fetch resources with individual visibility calculations
     const resourcesQuery = `
       SELECT r.*, 
         CASE 
@@ -153,10 +150,10 @@ app.get('/api/courses/:id/units', authenticateToken, async (req, res) => {
       FROM resources r
       JOIN units u ON r.unit_id = u.id
       WHERE u.course_id = $3
+      ORDER BY r.id ASC
     `;
     const resources = await pool.query(resourcesQuery, [userId, isAdmin, courseId]);
 
-    // Map resources into units
     const response = units.rows.map(unit => ({
       ...unit,
       resources: resources.rows.filter(r => r.unit_id === unit.id)
@@ -168,7 +165,8 @@ app.get('/api/courses/:id/units', authenticateToken, async (req, res) => {
   }
 });
 
-// Submit Unlock Request
+// --- UNLOCK REQUESTS ---
+
 app.post('/api/unlock-requests', authenticateToken, async (req, res) => {
   const { resource_id, reason } = req.body;
   try {
@@ -178,29 +176,26 @@ app.post('/api/unlock-requests', authenticateToken, async (req, res) => {
     );
     res.json({ message: 'Unlock request submitted to admin' });
   } catch (err) {
-    res.status(400).json({ error: 'Request already pending or invalid resource' });
+    res.status(400).json({ error: 'Request already pending' });
   }
 });
 
-// --- PERSONALIZED BANNER API ---
+// --- BANNER API ---
 
 app.get('/api/banner', authenticateToken, async (req, res) => {
   const userId = req.user.id;
   try {
-    // 1. Check direct user override
     const userOverride = await pool.query(
       "SELECT * FROM banner_overrides WHERE target_type = 'user' AND target_id = $1 AND is_active = TRUE ORDER BY id DESC LIMIT 1",
       [userId]
     );
     if (userOverride.rows.length > 0) return res.json(userOverride.rows[0]);
 
-    // 2. Check global override
     const globalOverride = await pool.query(
       "SELECT * FROM banner_overrides WHERE target_type = 'global' AND is_active = TRUE ORDER BY id DESC LIMIT 1"
     );
     if (globalOverride.rows.length > 0) return res.json(globalOverride.rows[0]);
 
-    // 3. Automated due-date banner (closest upcoming due item across enrolled courses)
     const autoBanner = await pool.query(`
       SELECT r.title as due_title, r.due_at, c.name as course_name
       FROM resources r
@@ -214,7 +209,7 @@ app.get('/api/banner', authenticateToken, async (req, res) => {
     if (autoBanner.rows.length > 0) {
       const item = autoBanner.rows[0];
       return res.json({
-        message: `Upcoming assignment for ${item.course_name}`,
+        message: `Next Due in ${item.course_name}`,
         due_title: item.due_title,
         due_at: item.due_at
       });
@@ -226,7 +221,7 @@ app.get('/api/banner', authenticateToken, async (req, res) => {
   }
 });
 
-// --- MANDATORY POPUP ACKNOWLEDGMENT SYSTEM ---
+// --- POPUPS & ACKNOWLEDGMENTS ---
 
 app.get('/api/popups/active', authenticateToken, async (req, res) => {
   const userId = req.user.id;
@@ -257,7 +252,7 @@ app.post('/api/popups/:id/acknowledge', authenticateToken, async (req, res) => {
   }
 });
 
-// --- ADMIN CONTROL PANEL API ROUTES ---
+// --- ADMIN CONTROL PANEL ROUTES ---
 
 app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
   const users = await pool.query(`
@@ -372,7 +367,7 @@ app.post('/api/admin/banners', authenticateToken, requireAdmin, async (req, res)
   res.json({ success: true });
 });
 
-// SERVE FRONTEND STATICS
+// Serve frontend files
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
