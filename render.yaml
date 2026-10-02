@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: classdeck
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run migrate
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false   # paste your Neon connection string in the Render dashboard
+      - key: ADMIN_PIN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
